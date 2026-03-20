@@ -2,24 +2,24 @@
   "name": "trading-bot",
   "version": "0.1.0",
   "description": "Crypto trading bot for ETH/BTC with technical indicators, sentiment analysis, and Discord alerts",
-  "type": "module",
-  "main": "dist/index.js",
   "bin": {
     "trading-bot": "./dist/index.js"
   },
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
     "backtest": "tsx src/backtest/index.ts",
-    "lint": "oxlint src"
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "lint": "oxlint src",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "ccxt": "^4.4.0",
-    "technicalindicators": "^3.1.0",
-    "express": "^4.21.0",
-    "dotenv": "^16.4.7",
     "chalk": "^5.3.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.0",
+    "technicalindicators": "^3.1.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
