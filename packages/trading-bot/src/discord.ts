@@ -90,6 +90,33 @@ export async function notifySentiment(sentiment: SentimentSnapshot): Promise<voi
   });
 }
 
+export async function notifyArbitrage(opp: {
+  cycle: string[];
+  profitPct: number;
+  startUsd: number;
+  endUsd: number;
+}): Promise<void> {
+  await postWebhook({
+    embeds: [
+      {
+        title: `⚡ Arbitrage ${opp.profitPct > 0 ? "Executed" : "Detected"}`,
+        color: COLORS.BUY,
+        fields: [
+          { name: "Cycle", value: opp.cycle.join(" → "), inline: false },
+          { name: "Profit", value: `+${opp.profitPct.toFixed(3)}%`, inline: true },
+          { name: "Capital", value: `$${opp.startUsd.toFixed(2)}`, inline: true },
+          {
+            name: "Expected Return",
+            value: `$${opp.endUsd.toFixed(2)} (+$${(opp.endUsd - opp.startUsd).toFixed(2)})`,
+            inline: true,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  });
+}
+
 export async function notifyStartup(symbols: string[], dryRun: boolean): Promise<void> {
   await postWebhook({
     embeds: [

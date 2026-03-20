@@ -33,6 +33,15 @@ export const config = {
     // Minimum 24h quote volume in USD — filters out illiquid / meme pairs
     minLiquidityUsd: parseInt(optional("MIN_LIQUIDITY_USD", "1000000"), 10),
   },
+  arbitrage: {
+    enabled: optional("ARB_ENABLED", "true") === "true",
+    // Minimum profit % after fees to execute (0.2% default)
+    minProfitPct: parseFloat(optional("ARB_MIN_PROFIT_PCT", "0.002")),
+    // USD capital to deploy per arb opportunity
+    capitalUsd: parseFloat(optional("ARB_CAPITAL_USD", "500")),
+    // How often to scan in ms (10s default)
+    intervalMs: parseInt(optional("ARB_INTERVAL_MS", "10000"), 10),
+  },
   strategy: {
     // EMA periods
     emaFast: 9,

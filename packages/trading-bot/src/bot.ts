@@ -1,3 +1,4 @@
+import { startArbitrage, stopArbitrage, arbStats } from "./arbitrage.js";
 import { config } from "./config.js";
 import { notifySignal, notifySentiment } from "./discord.js";
 import { fetchCandles, fetchTicker, isLiquid } from "./exchange.js";
@@ -16,6 +17,7 @@ export interface BotState {
   signals: Record<string, ReturnType<typeof generateSignal>>;
   sentiment: Awaited<ReturnType<typeof fetchSentiment>> | null;
   errors: string[];
+  arbitrage: typeof arbStats;
 }
 
 export const state: BotState = {
@@ -26,6 +28,7 @@ export const state: BotState = {
   signals: {},
   sentiment: null,
   errors: [],
+  arbitrage: arbStats,
 };
 
 let sentimentInterval: NodeJS.Timeout | null = null;
@@ -123,6 +126,11 @@ export async function startBot() {
   sentimentInterval = setInterval(refreshSentiment, SENTIMENT_INTERVAL_MS);
   signalInterval = setInterval(checkSignals, SIGNAL_INTERVAL_MS);
 
+  // Arbitrage scanner
+  if (config.arbitrage.enabled) {
+    startArbitrage();
+  }
+
   log.info(
     `Bot running — signal check every ${SIGNAL_INTERVAL_MS / 60000}min, sentiment every ${SENTIMENT_INTERVAL_MS / 60000}min`,
   );
@@ -135,6 +143,7 @@ export function stopBot() {
   if (signalInterval) {
     clearInterval(signalInterval);
   }
+  stopArbitrage();
   state.running = false;
   log.info("Bot stopped");
 }
