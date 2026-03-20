@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trading Bot</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d0d0d; color: #e0e0e0; min-height: 100vh; }
+
+    /* ── Nav ── */
+    header { display: flex; align-items: center; gap: 0; padding: 0 24px; background: #151515; border-bottom: 1px solid #222; }
+    header h1 { font-size: 1.1rem; font-weight: 700; color: #fff; padding: 16px 20px 16px 0; margin-right: 20px; border-right: 1px solid #2a2a2a; }
+    .nav-tab { padding: 18px 18px; font-size: 0.85rem; font-weight: 600; color: #555; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; white-space: nowrap; }
+    .nav-tab:hover { color: #aaa; }
+    .nav-tab.active { color: #fff; border-bottom-color: #6c63ff; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+    .status-pill.running { background: #0f2f1a; color: #00e676; border: 1px solid #00e676; }
+    .status-pill.stopped { background: #2a1010; color: #ff5252; border: 1px solid #ff5252; }
+    button { padding: 6px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity .15s; }
+    button:hover { opacity: .85; }
+    .btn-start { background: #00c851; color: #000; }
+    .btn-stop  { background: #ff4444; color: #fff; }
+
+    /* ── Layout ── */
+    .page { display: none; padding: 24px; }
+    .page.active { display: block; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .gap { margin-top: 20px; }
+
+    /* ── Cards ── */
+    .card { background: #151515; border: 1px solid #222; border-radius: 12px; padding: 20px; }
+    .card h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: #555; margin-bottom: 14px; }
+    .big-number { font-size: 1.9rem; font-weight: 700; color: #fff; }
+    .label { font-size: 0.78rem; color: #555; margin-top: 4px; }
+    .metric-row { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px solid #1a1a1a; font-size: 0.85rem; }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-label { color: #666; }
+    .metric-val { font-weight: 600; }
+
+    /* ── Badges / signals ── */
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
+    .badge.BUY  { background: #0f2f1a; color: #00e676; }
+    .badge.SELL { background: #2a1010; color: #ff5252; }
+    .badge.HOLD { background: #1e1e1e; color: #888; }
+    .positive { color: #00e676; }
+    .negative { color: #ff5252; }
+    .neutral  { color: #888; }
+
+    .signal-row { display: flex; align-items: flex-start; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #1e1e1e; }
+    .signal-row:last-child { border-bottom: none; }
+    .reasons { font-size: 0.72rem; color: #666; margin-top: 4px; }
+    .reasons li { margin-left: 14px; margin-top: 2px; }
+
+    /* ── Fear & Greed ── */
+    .fg-bar-wrap { background: #222; border-radius: 6px; height: 10px; margin-top: 8px; overflow: hidden; }
+    .fg-bar { height: 100%; border-radius: 6px; transition: width .5s; }
+
+    /* ── News ── */
+    .news-item { padding: 8px 0; border-bottom: 1px solid #1e1e1e; font-size: 0.82rem; }
+    .news-item:last-child { border-bottom: none; }
+    .news-item a { color: #90caf9; text-decoration: none; }
+    .news-item a:hover { text-decoration: underline; }
+    .news-meta { font-size: 0.7rem; color: #555; margin-top: 2px; }
+
+    /* ── Backtest ── */
+    .backtest-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 24px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label { font-size: 0.72rem; color: #666; text-transform: uppercase; letter-spacing: .06em; }
+    .form-group select, .form-group input {
+      background: #1e1e1e; border: 1px solid #333; color: #e0e0e0;
+      padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; outline: none;
+    }
+    .form-group select:focus, .form-group input:focus { border-color: #6c63ff; }
+    .btn-run { background: #6c63ff; color: #fff; padding: 8px 20px; align-self: flex-end; }
+    .btn-run:disabled { opacity: .4; cursor: not-allowed; }
+
+    .verdict { padding: 12px 16px; border-radius: 8px; font-size: 0.88rem; font-weight: 600; margin-bottom: 20px; }
+    .verdict.good    { background: #0f2f1a; border: 1px solid #00e676; color: #00e676; }
+    .verdict.bad     { background: #2a1010; border: 1px solid #ff5252; color: #ff5252; }
+    .verdict.neutral { background: #1a1a2e; border: 1px solid #6c63ff; color: #b0a8ff; }
+    .verdict.warn    { background: #2a2010; border: 1px solid #ffab40; color: #ffab40; }
+
+    .trade-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .trade-table th { text-align: left; padding: 8px 10px; color: #555; font-size: 0.7rem; text-transform: uppercase; border-bottom: 1px solid #222; }
+    .trade-table td { padding: 8px 10px; border-bottom: 1px solid #1a1a1a; }
+    .trade-table tr:last-child td { border-bottom: none; }
+
+    .chart-wrap { position: relative; height: 300px; }
+    .chart-wrap-tall { position: relative; height: 380px; }
+
+    #last-update { font-size: 0.7rem; color: #333; padding: 8px 24px; }
+
+    @media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ Trading Bot</h1>
+  <div class="nav-tab active" onclick="showPage('live')">Live</div>
+  <div class="nav-tab" onclick="showPage('backtest')">Backtest</div>
+  <div class="header-right">
+    <span id="status-pill" class="status-pill stopped">Stopped</span>
+    <button class="btn-start" onclick="botAction('start')">Start</button>
+    <button class="btn-stop"  onclick="botAction('stop')">Stop</button>
+  </div>
+</header>
+
+<!-- ═══════════════ LIVE PAGE ═══════════════ -->
+<div id="page-live" class="page active">
+  <div id="prices-grid" class="grid-3"></div>
+
+  <div class="grid-2 gap">
+    <div class="card">
+      <h2>Signals</h2>
+      <div id="signals-list"><div class="label">Waiting for data…</div></div>
+    </div>
+    <div class="card">
+      <h2>Market Sentiment</h2>
+      <div id="sentiment-panel"><div class="label">Loading…</div></div>
+    </div>
+  </div>
+
+  <div class="grid-2 gap">
+    <div class="card">
+      <h2>Portfolio</h2>
+      <div id="portfolio-panel"><div class="label">Loading…</div></div>
+    </div>
+    <div class="card">
+      <h2>Latest News</h2>
+      <div id="news-list"><div class="label">No news (add CRYPTOPANIC_API_KEY)</div></div>
+    </div>
+  </div>
+
+  <div class="card gap" id="errors-card" style="display:none">
+    <h2>Errors</h2>
+    <div id="errors-list" style="font-size:.78rem;color:#ff5252;font-family:monospace"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ BACKTEST PAGE ═══════════════ -->
+<div id="page-backtest" class="page">
+
+  <!-- Controls -->
+  <div class="card">
+    <h2>Run Backtest</h2>
+    <div class="backtest-form">
+      <div class="form-group">
+        <label>Symbol</label>
+        <select id="bt-symbol">
+          <option value="ETH/USD">ETH/USD</option>
+          <option value="BTC/USD">BTC/USD</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Period</label>
+        <select id="bt-days">
+          <option value="90">90 days</option>
+          <option value="180" selected>180 days</option>
+          <option value="365">1 year</option>
+          <option value="730">2 years</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Timeframe</label>
+        <select id="bt-timeframe">
+          <option value="15m">15m</option>
+          <option value="1h" selected>1h</option>
+          <option value="4h">4h</option>
+          <option value="1d">1d</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Starting Capital ($)</label>
+        <input id="bt-capital" type="number" value="10000" min="100" step="100" style="width:120px" />
+      </div>
+      <button class="btn-run" id="bt-run-btn" onclick="runBacktest()">Run</button>
+    </div>
+    <div id="bt-status" style="font-size:.82rem;color:#666"></div>
+  </div>
+
+  <!-- Results (hidden until run) -->
+  <div id="bt-results" style="display:none">
+
+    <!-- Verdict -->
+    <div id="bt-verdict" class="verdict neutral gap"></div>
+
+    <!-- Key metrics -->
+    <div id="bt-metrics-grid" class="grid-4 gap"></div>
+
+    <!-- Charts -->
+    <div class="grid-2 gap">
+      <div class="card">
+        <h2>Equity Curve</h2>
+        <div class="chart-wrap-tall"><canvas id="equity-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>Price + Trades</h2>
+        <div class="chart-wrap-tall"><canvas id="price-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Trade breakdown -->
+    <div class="grid-2 gap">
+      <div class="card">
+        <h2>Trade Stats</h2>
+        <div id="bt-trade-stats"></div>
+      </div>
+      <div class="card">
+        <h2>PnL per Trade (%)</h2>
+        <div class="chart-wrap"><canvas id="pnl-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Trade log -->
+    <div class="card gap">
+      <h2>Trade Log</h2>
+      <div style="overflow-x:auto">
+        <table class="trade-table">
+          <thead><tr>
+            <th>Entry Date</th><th>Exit Date</th>
+            <th>Entry $</th><th>Exit $</th>
+            <th>PnL %</th><th>PnL $</th><th>Duration</th>
+          </tr></thead>
+          <tbody id="bt-trade-log"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /bt-results -->
+</div>
+
+<div id="last-update"></div>
+
+<script>
+// ═══════════════ Navigation ═══════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'))
+  document.getElementById('page-' + name).classList.add('active')
+  event.currentTarget.classList.add('active')
+}
+
+// ═══════════════ Helpers ═══════════════
+const fmtPrice = n => '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtPct   = n => (n >= 0 ? '+' : '') + Number(n).toFixed(2) + '%'
+const fmtDate  = ts => new Date(ts).toLocaleDateString()
+const pctColor = n => n >= 0 ? '#00e676' : '#ff5252'
+
+// ═══════════════ Live dashboard ═══════════════
+async function botAction(action) {
+  await fetch('/api/bot/' + action, { method: 'POST' })
+  refreshLive()
+}
+
+function renderPrices(state) {
+  const el = document.getElementById('prices-grid')
+  if (!Object.keys(state.prices).length) { el.innerHTML = ''; return }
+  el.innerHTML = Object.entries(state.prices).map(([sym, price]) => {
+    const sig = state.signals[sym]
+    const dir = sig?.direction ?? 'HOLD'
+    return `<div class="card"><h2>${sym}</h2><div class="big-number">${fmtPrice(price)}</div>
+      <div class="label" style="margin-top:8px"><span class="badge ${dir}">${dir}</span></div></div>`
+  }).join('')
+}
+
+function renderSignals(state) {
+  const el = document.getElementById('signals-list')
+  const entries = Object.entries(state.signals)
+  if (!entries.length) { el.innerHTML = '<div class="label">No signals yet</div>'; return }
+  el.innerHTML = entries.map(([sym, sig]) => `
+    <div class="signal-row"><div>
+      <div><strong>${sym}</strong> <span class="badge ${sig.direction}">${sig.direction}</span>
+        <span style="font-size:.78rem;color:#555;margin-left:8px">strength: ${(sig.strength*100).toFixed(0)}%</span></div>
+      <ul class="reasons">${sig.reasons.slice(0,3).map(r => `<li>${r}</li>`).join('')}</ul>
+    </div></div>`).join('')
+}
+
+function renderSentiment(state) {
+  const el = document.getElementById('sentiment-panel')
+  const s = state.sentiment
+  if (!s) { el.innerHTML = '<div class="label">Loading…</div>'; return }
+  const fg = s.fearGreed
+  const color = fg.value < 30 ? '#ff5252' : fg.value < 50 ? '#ffab40' : fg.value < 70 ? '#fff176' : '#00e676'
+  el.innerHTML = `
+    <div style="font-size:1.5rem;font-weight:700;color:${color}">${fg.value}
+      <span style="font-size:.9rem;font-weight:400">${fg.classification}</span></div>
+    <div class="fg-bar-wrap"><div class="fg-bar" style="width:${fg.value}%;background:${color}"></div></div>
+    <div class="label" style="margin-top:10px">Composite score:
+      <strong style="color:${s.score>=0?'#00e676':'#ff5252'}">${s.score.toFixed(2)}</strong></div>`
+}
+
+function renderNews(state) {
+  const el = document.getElementById('news-list')
+  const news = state.sentiment?.news ?? []
+  if (!news.length) { el.innerHTML = '<div class="label">No news (add CRYPTOPANIC_API_KEY)</div>'; return }
+  el.innerHTML = news.slice(0,8).map(n => {
+    const icon = n.sentiment === 'positive' ? '🟢' : n.sentiment === 'negative' ? '🔴' : '⚪'
+    return `<div class="news-item">${icon} <a href="${n.url}" target="_blank">${n.title}</a>
+      <div class="news-meta">${n.source} · ${new Date(n.publishedAt).toLocaleTimeString()}</div></div>`
+  }).join('')
+}
+
+async function renderPortfolio() {
+  const el = document.getElementById('portfolio-panel')
+  try {
+    const p = await fetch('/api/portfolio').then(r => r.json())
+    if (!p) { el.innerHTML = '<div class="label">No data</div>'; return }
+
+    // Summary row
+    let html = `
+      <div class="grid-2" style="gap:12px;margin-bottom:16px">
+        <div><div class="label">Total Value</div><div style="font-size:1.3rem;font-weight:700;color:#fff">${fmtPrice(p.totalValueUsd)}</div></div>
+        <div><div class="label">Cash (USD + USDC)</div>
+          <div style="font-size:1.3rem;font-weight:700">${fmtPrice(p.usdFree)}</div>
+          <div class="label">USD ${fmtPrice(p.usdActual)} · USDC ${fmtPrice(p.usdcBalance)}</div>
+        </div>
+        <div><div class="label">Realized PnL</div><div style="font-size:1.1rem;font-weight:600;color:${pctColor(p.realizedPnl)}">${fmtPrice(p.realizedPnl)}</div></div>
+        <div><div class="label">Bot Trades</div><div style="font-size:1.1rem;font-weight:600">${p.tradeCount}</div></div>
+      </div>`
+
+    // Coinbase holdings
+    if (p.holdings?.length) {
+      html += `<div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-bottom:8px">Your Holdings</div>`
+      html += p.holdings.map(h => `
+        <div class="signal-row">
+          <div>
+            <strong>${h.currency}</strong>
+            <span class="label" style="display:inline;margin-left:8px">${h.qty.toFixed(6)}</span>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:600">${fmtPrice(h.valueUsd)}</div>
+            <div class="label">${fmtPrice(h.priceUsd)} each</div>
+          </div>
+        </div>`).join('')
+    }
+
+    // Bot-managed open positions
+    if (p.openPositions?.length) {
+      html += `<div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#555;margin:12px 0 8px">Bot Positions</div>`
+      html += p.openPositions.map(pos => {
+        const pnl = (pos.currentPrice - pos.entryPrice) / pos.entryPrice * 100
+        return `<div class="signal-row">
+          <div>
+            <strong>${pos.symbol}</strong>
+            <span class="label" style="display:inline;margin-left:6px">${pos.qty.toFixed(6)} @ ${fmtPrice(pos.entryPrice)}</span>
+          </div>
+          <div style="color:${pctColor(pnl)};font-weight:600">${fmtPct(pnl)}</div>
+        </div>`
+      }).join('')
+    }
+
+    el.innerHTML = html
+  } catch { el.innerHTML = '<div class="label">Error loading portfolio</div>' }
+}
+
+function renderErrors(state) {
+  const card = document.getElementById('errors-card')
+  const el   = document.getElementById('errors-list')
+  if (!state.errors?.length) { card.style.display = 'none'; return }
+  card.style.display = ''
+  el.innerHTML = state.errors.slice(-10).reverse().map(e => `<div>${e}</div>`).join('')
+}
+
+async function refreshLive() {
+  try {
+    const state = await fetch('/api/state').then(r => r.json())
+    const pill = document.getElementById('status-pill')
+    pill.textContent = state.running ? 'Running' : 'Stopped'
+    pill.className = 'status-pill ' + (state.running ? 'running' : 'stopped')
+    renderPrices(state)
+    renderSignals(state)
+    renderSentiment(state)
+    renderNews(state)
+    renderErrors(state)
+    await renderPortfolio()
+    document.getElementById('last-update').textContent =
+      state.lastUpdate ? `Last update: ${new Date(state.lastUpdate).toLocaleTimeString()}` : ''
+  } catch(e) { console.error('Refresh failed', e) }
+}
+
+refreshLive()
+setInterval(refreshLive, 15_000)
+
+// ═══════════════ Backtest ═══════════════
+let equityChartInst = null
+let priceChartInst  = null
+let pnlChartInst    = null
+
+async function runBacktest() {
+  const btn = document.getElementById('bt-run-btn')
+  const status = document.getElementById('bt-status')
+  btn.disabled = true
+  btn.textContent = 'Fetching data…'
+  status.textContent = 'Downloading historical candles from Kraken — this takes ~10–20s…'
+  document.getElementById('bt-results').style.display = 'none'
+
+  const body = {
+    symbol:    document.getElementById('bt-symbol').value,
+    days:      document.getElementById('bt-days').value,
+    capital:   document.getElementById('bt-capital').value,
+    timeframe: document.getElementById('bt-timeframe').value,
+  }
+
+  try {
+    const res = await fetch('/api/backtest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+    if (!res.ok) { status.textContent = '❌ ' + (data.error ?? 'Failed'); return }
+    status.textContent = ''
+    renderBacktestResults(data)
+  } catch(e) {
+    status.textContent = '❌ ' + e.message
+  } finally {
+    btn.disabled = false
+    btn.textContent = 'Run'
+  }
+}
+
+function getVerdictClass(m) {
+  if (m.totalTrades < 5) return 'warn'
+  if (m.totalReturnPct < 0) return 'bad'
+  if (m.maxDrawdownPct > 30) return 'warn'
+  if (m.sharpeRatio > 1 && m.totalReturnPct > 5) return 'good'
+  return 'neutral'
+}
+
+function getVerdictText(m) {
+  if (m.totalTrades < 5) return '⚠ Too few trades — try a longer period or shorter timeframe'
+  if (m.totalReturnPct < 0) return '✗ Strategy lost money in this period — review parameters'
+  if (m.maxDrawdownPct > 30) return '⚠ High drawdown — risky, consider tighter stops'
+  if (m.winRate < 40) return '⚠ Low win rate — may still be profitable if avg win > avg loss'
+  if (m.sharpeRatio > 1 && m.totalReturnPct > 5) return '✓ Solid results — reasonable to test live with small size'
+  if (m.totalReturnPct > 0) return '~ Profitable but marginal — keep running and watch more data'
+  return '~ Inconclusive'
+}
+
+function renderBacktestResults(data) {
+  const { metrics: m, trades, equityCurve, symbol, startDate, endDate } = data
+
+  // Verdict
+  const vEl = document.getElementById('bt-verdict')
+  vEl.textContent = getVerdictText(m)
+  vEl.className = 'verdict gap ' + getVerdictClass(m)
+
+  // Metric cards
+  const metrics = [
+    { label: 'Total Return', value: fmtPct(m.totalReturnPct), color: pctColor(m.totalReturnPct) },
+    { label: 'Max Drawdown', value: '-' + m.maxDrawdownPct.toFixed(2) + '%', color: m.maxDrawdownPct > 20 ? '#ff5252' : m.maxDrawdownPct > 10 ? '#ffab40' : '#00e676' },
+    { label: 'Sharpe Ratio', value: m.sharpeRatio.toFixed(2),  color: m.sharpeRatio > 1 ? '#00e676' : '#ffab40' },
+    { label: 'Profit Factor', value: m.profitFactor === Infinity ? '∞' : m.profitFactor.toFixed(2), color: m.profitFactor > 1.5 ? '#00e676' : '#ffab40' },
+    { label: 'Win Rate', value: m.winRate.toFixed(1) + '%',    color: m.winRate >= 50 ? '#00e676' : '#ffab40' },
+    { label: 'Total Trades', value: m.totalTrades,             color: '#e0e0e0' },
+    { label: 'Avg Win',  value: fmtPct(m.avgWinPct),           color: '#00e676' },
+    { label: 'Avg Loss', value: fmtPct(m.avgLossPct),          color: '#ff5252' },
+  ]
+  document.getElementById('bt-metrics-grid').innerHTML = metrics.map(({ label, value, color }) => `
+    <div class="card">
+      <h2>${label}</h2>
+      <div class="big-number" style="color:${color};font-size:1.6rem">${value}</div>
+    </div>`).join('')
+
+  // Equity curve chart
+  if (equityChartInst) equityChartInst.destroy()
+  const eqCtx = document.getElementById('equity-chart').getContext('2d')
+  equityChartInst = new Chart(eqCtx, {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: 'Portfolio ($)',
+        data: equityCurve.map(p => ({ x: p.timestamp, y: p.equity })),
+        borderColor: '#6c63ff',
+        backgroundColor: 'rgba(108,99,255,.08)',
+        fill: true,
+        pointRadius: 0,
+        borderWidth: 2,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { type: 'time', time: { unit: 'week' }, ticks: { color: '#555' }, grid: { color: '#1a1a1a' } },
+        y: { ticks: { color: '#555', callback: v => '$' + v.toLocaleString() }, grid: { color: '#1a1a1a' } },
+      },
+      plugins: { legend: { display: false } },
+    }
+  })
+
+  // Price + trade markers chart
+  if (priceChartInst) priceChartInst.destroy()
+  const prCtx = document.getElementById('price-chart').getContext('2d')
+  const buyPoints  = trades.map(t => ({ x: t.entryTime, y: t.entryPrice }))
+  const sellPoints = trades.map(t => ({ x: t.exitTime,  y: t.exitPrice  }))
+  priceChartInst = new Chart(prCtx, {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: 'Price',
+          data: equityCurve.map(p => ({ x: p.timestamp, y: p.price })),
+          borderColor: '#90caf9', borderWidth: 1.5, pointRadius: 0, tension: 0.2,
+        },
+        {
+          label: 'Buy',
+          data: buyPoints,
+          type: 'scatter',
+          pointStyle: 'triangle', pointRadius: 7,
+          backgroundColor: '#00e676', borderColor: '#00e676',
+        },
+        {
+          label: 'Sell',
+          data: sellPoints,
+          type: 'scatter',
+          pointStyle: 'triangle', rotation: 180, pointRadius: 7,
+          backgroundColor: '#ff5252', borderColor: '#ff5252',
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { type: 'time', time: { unit: 'week' }, ticks: { color: '#555' }, grid: { color: '#1a1a1a' } },
+        y: { ticks: { color: '#555', callback: v => '$' + v.toLocaleString() }, grid: { color: '#1a1a1a' } },
+      },
+      plugins: { legend: { labels: { color: '#888', boxWidth: 12 } } },
+    }
+  })
+
+  // PnL bar chart
+  if (pnlChartInst) pnlChartInst.destroy()
+  const pnlCtx = document.getElementById('pnl-chart').getContext('2d')
+  pnlChartInst = new Chart(pnlCtx, {
+    type: 'bar',
+    data: {
+      labels: trades.map((_, i) => `T${i + 1}`),
+      datasets: [{
+        label: 'PnL %',
+        data: trades.map(t => parseFloat(t.pnlPct.toFixed(2))),
+        backgroundColor: trades.map(t => t.pnlPct >= 0 ? 'rgba(0,230,118,.7)' : 'rgba(255,82,82,.7)'),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#555' }, grid: { display: false } },
+        y: { ticks: { color: '#555', callback: v => v + '%' }, grid: { color: '#1a1a1a' } },
+      },
+      plugins: { legend: { display: false } },
+    }
+  })
+
+  // Trade stats
+  document.getElementById('bt-trade-stats').innerHTML = [
+    ['Period', `${startDate} → ${endDate}`],
+    ['Best Trade',  fmtPct(m.bestTradePct)],
+    ['Worst Trade', fmtPct(m.worstTradePct)],
+    ['Avg Duration', m.avgDurationHours.toFixed(1) + 'h'],
+    ['Final Equity', fmtPrice(m.finalEquity)],
+    ['Net Profit',   fmtPrice(m.totalReturnUsd)],
+  ].map(([k, v]) => `<div class="metric-row"><span class="metric-label">${k}</span><span class="metric-val">${v}</span></div>`).join('')
+
+  // Trade log
+  document.getElementById('bt-trade-log').innerHTML = trades.map(t => {
+    const cls = t.pnlPct >= 0 ? 'positive' : 'negative'
+    return `<tr>
+      <td>${fmtDate(t.entryTime)}</td>
+      <td>${fmtDate(t.exitTime)}</td>
+      <td>${fmtPrice(t.entryPrice)}</td>
+      <td>${fmtPrice(t.exitPrice)}</td>
+      <td class="${cls}">${fmtPct(t.pnlPct)}</td>
+      <td class="${cls}">${fmtPrice(t.pnlUsd)}</td>
+      <td>${t.durationHours.toFixed(0)}h</td>
+    </tr>`
+  }).join('')
+
+  document.getElementById('bt-results').style.display = ''
+  document.getElementById('bt-results').scrollIntoView({ behavior: 'smooth' })
+}
+</script>
+</body>
+</html>
